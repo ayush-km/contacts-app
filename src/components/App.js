@@ -3,57 +3,52 @@ import Header from "./Header";
 import AddContact from "./AddContact";
 import ContactList from "./ContactList";
 import { useEffect, useState } from "react";
-import { uuid } from "uuidv4";
 import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
 import ContactDetail from "./ContactDetail";
-import api from "../api/contacts";
 import UpdateContact from "./UpdateContact";
+import { db } from "../config/firebase_config";
+import { useCollectionData } from "react-firebase-hooks/firestore";
+import firebase from "firebase/compat";
 
 function App() {
   const [contacts, setContacts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
 
-  async function retrieveContacts() {
-    const res = await api.get("/contacts");
-    return res.data;
-  }
+  /* retrieve contacts */
+  const contactRef = db.collection("contacts");
+  const query = contactRef.orderBy("createdAt");
+  const [contactsList] = useCollectionData(query, { idField: "id" });
 
   async function addContact(contact) {
-    const req = {
-      id: uuid(),
-      ...contact,
-    };
+    const { name, email, showAlert } = contact;
 
-    const res = await api.post("/contacts", req);
-    setContacts([...contacts, res.data]);
+    await db.collection("contacts").add({
+      name: name,
+      email: email,
+      showAlert: showAlert,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
   }
 
   async function removeContact(id) {
-    await api.delete(`/contacts/${id}`);
-    const newContacts = contacts.filter((contact) => contact.id !== id);
-    setContacts(newContacts);
+    await db.collection("contacts").doc(id).delete();
   }
 
   async function updateContact(contact) {
-    const res = await api.put(`/contacts/${contact.id}`, contact);
-    const { id } = res.data;
-    setContacts(
-      contacts.map((contact) => (contact.id === id ? { ...res.data } : contact))
-    );
+    const { id, name, email, showAlert } = contact;
+
+    await db.collection("contacts").doc(id).set({
+      name: name,
+      email: email,
+      showAlert: showAlert,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
   }
 
   useEffect(() => {
-    /* const getContacts = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY));
-    if (getContacts) setContacts(getContacts); */
-
-    async function getAllContacts() {
-      const contactsList = await retrieveContacts();
-      if (contactsList) setContacts(contactsList);
-    }
-
-    getAllContacts();
-  }, []);
+    if (contactsList) setContacts(contactsList);
+  }, [contactsList]);
 
   function searchHandler(searchTerm) {
     setSearchTerm(searchTerm);
